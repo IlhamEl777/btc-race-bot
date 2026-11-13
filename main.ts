@@ -53,7 +53,8 @@ function onBatch(state: BarsState, batch: any): OrderInput[] {
   const close = Number(closeRaw) / 10 ** state.hello.symbols.find((s) => s.symbol === SYMBOL)!.price_scale;
   closes.push(close);
 
-  const equity = state.equity;
+  // state.equity is a bigint in the TS shim; the brake math is float.
+  const equity = Number(state.equity);
   if (equity > peakEquity) peakEquity = equity;
   if (peakEquity > 0 && ((peakEquity - equity) * BPS_N) / peakEquity >= DRAWDOWN_BRAKE_BPS) {
     halted = true;
