@@ -21,17 +21,29 @@ Buy-and-hold loses ~$53 on it and every shipped baseline loses money
 (ema-cross -$109, rsi-bollinger -$66, adx-momentum -$50, momentum -$49).
 A dip-buy catches the intraday bounces instead of riding the trend down.
 
+Why 60% size: a full-size round trip pays ~26 bps in fees, slippage and
+price impact on this thin pool. At 60% size the impact roughly halves while
+the edge per trade stays, so the net per trade is better.
+
 ## Grades (official `grade-local --driver process` on the dev window)
 
 | version | net PnL | trades | max drawdown | dev gate |
 |---------|--------:|-------:|-------------:|----------|
-| v1 (L=90, dip 1.4%, tp +0.4%, sl -0.6%, hold 240, cooldown 60) | **+$17.69** | 12 | 0.5% | **PASS** |
+| v4 (full size, L=90, dip 1.4%, tp +0.4%, sl -0.6%, cooldown 60) | -$9.66 | 12 | 1.6% | FAIL |
+| v5 (60% size, L=120, dip 1.3%, tp +0.4%, sl -1.2%, cooldown 30) | **+$6.62** | 16 | 0.8% | **PASS** |
 
-The parameters sit on a broad plateau, not a spike: 282 of 864 nearby
-parameter combinations are also positive on the dev window, and the same
-configuration is positive on the time-reversed window (+$3.30), the second
-half alone (+$8.45), and a time-shifted copy (+$15.31) — so it is not
-overfit to one stretch of the day.
+Net PnL at 2x fees is still +$2.77, so the edge survives a doubling of
+costs. The parameters sit on a broad plateau, not a spike: 167 of 972 nearby
+combinations are also positive, and the same configuration is positive on the
+time-reversed window (+$0.88), the second half alone (+$2.53), and a
+time-shifted copy (+$3.85) — so it is not overfit to one stretch of the day.
+
+Lesson from v4: the first simulator understated price impact by a factor of
+1,000,000 (it fed USD where the pool depth is in USDC raw units), which made
+full size look like +$17.69. The official grader's action log exposed it:
+the real fills were ~13 bps worse than simulated. The simulator was fixed to
+work in quote units and now matches the official grade to the cent
+(+$6.63 simulated vs +$6.62 official).
 
 ## Layout
 
