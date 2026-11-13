@@ -50,7 +50,7 @@ function onBatch(state: BarsState, batch: any): OrderInput[] {
   if (state.warming_up) return [];
   const closeRaw = state.close(SYMBOL);
   if (closeRaw === null) return [];
-  const close = Number(closeRaw) / 10 ** state.symbols[SYMBOL].price_scale;
+  const close = Number(closeRaw) / 10 ** state.hello.symbols.find((s) => s.symbol === SYMBOL)!.price_scale;
   closes.push(close);
 
   const equity = state.equity;
