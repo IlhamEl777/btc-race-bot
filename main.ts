@@ -23,7 +23,10 @@
 // Deterministic: every decision is a pure function of the closes seen so far;
 // no clock, no environment, no randomness.
 
-import { BPS, runBars, type BarsState, type OrderInput } from './vendor/makefun-bars.ts';
+import { runBars, type BarsState, type OrderInput } from './vendor/makefun-bars.ts';
+
+// NOTE: the SDK's BPS is a bigint; all thresholds here are plain numbers.
+const BPS_N = 10_000;
 
 const SYMBOL = 'CBBTC';
 const LOOKBACK_BARS = 90; // rolling-high window
@@ -47,28 +50,32 @@ function onBatch(state: BarsState, batch: any): OrderInput[] {
   if (state.warming_up) return [];
   const closeRaw = state.close(SYMBOL);
   if (closeRaw === null) return [];
-  const close = Number(closeRaw) / 10 ** state.hello.symbols[0].price_scale;
+  const close = Number(closeRaw) / 10 ** state.symbols[SYMBOL].price_scale;
   closes.push(close);
 
   const equity = state.equity;
   if (equity > peakEquity) peakEquity = equity;
-  if (peakEquity > 0 && ((peakEquity - equity) * BPS) / peakEquity >= DRAWDOWN_BRAKE_BPS) {
+  if (peakEquity > 0 && ((peakEquity - equity) * BPS_N) / peakEquity >= DRAWDOWN_BRAKE_BPS) {
     halted = true;
+  }
+
+  const held = state.positions.get(SYMBOL);
+  // The position is gone only when the account says so: clear the entry then,
+  // so a rejected sell never strands us holding without an exit rule.
+  if (!held && entryPrice !== null) {
+    entryPrice = null;
+    lastExitSeq = batch.seq;
   }
   if (halted) {
     // Liquidate once if still holding, then stay out.
-    const held = state.positions.get(SYMBOL);
     if (held) return [{ side: 'sell', symbol: SYMBOL, qty: held.qty, max_slippage_bps: MAX_SLIPPAGE_BPS }];
     return [];
   }
 
-  const held = state.positions.get(SYMBOL);
   if (held) {
     const entry = entryPrice!;
-    const retBps = ((close - entry) * BPS) / entry;
+    const retBps = ((close - entry) * BPS_N) / entry;
     if (retBps >= TAKE_PROFIT_BPS || retBps <= -STOP_LOSS_BPS || batch.seq - entrySeq >= MAX_HOLD_BARS) {
-      entryPrice = null;
-      lastExitSeq = batch.seq;
       return [{ side: 'sell', symbol: SYMBOL, qty: held.qty, max_slippage_bps: MAX_SLIPPAGE_BPS }];
     }
     return [];
@@ -81,7 +88,7 @@ function onBatch(state: BarsState, batch: any): OrderInput[] {
   for (let i = closes.length - LOOKBACK_BARS - 1; i < closes.length - 1; i++) {
     if (closes[i] > high) high = closes[i];
   }
-  if (close <= (high * (BPS - DIP_BPS)) / BPS) {
+  if (close <= (high * (BPS_N - DIP_BPS)) / BPS_N) {
     const notional = state.cash;
     if (notional < BigInt(state.hello.fees.min_notional_quote_units)) return [];
     entryPrice = close;
